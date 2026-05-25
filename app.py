@@ -73,40 +73,56 @@ with st.expander("💡 Nápověda: Jak číst modré řádky v DroneMap?"):
     * **TSA / TRA (Dočasně vyhrazený prostor):** Sledujte čas (UTC) a *Vertikální hranice*.
     """)
 
-# UPRAVENO: accept_multiple_files=True pro nahrání více screenshotů
 screenshots = st.file_uploader("Nahrajte screenshoty z DroneMap (můžete i více najednou):", type=['png', 'jpg', 'jpeg'], accept_multiple_files=True)
 
-# --- AI ANALÝZA VÍCE OBRÁZKŮ ---
-ai_final_text = "AI analýza nebyla spuštěna (chybí API klíč nebo screenshoty)."
+# --- OPRAVENO: AI ANALÝZA S PAMĚTÍ (SESSION STATE) PROTI OPAKOVANÉMU SPOUŠTĚNÍ ---
+if 'ai_final_text' not in st.session_state:
+    st.session_state['ai_final_text'] = "AI analýza nebyla spuštěna (vyberte soubory a klikněte na tlačítko níže)."
+if 'last_uploaded_files' not in st.session_state:
+    st.session_state['last_uploaded_files'] = []
+
+# Detekce, zda uživatel změnil nahrané soubory (pokud ano, resetujeme starou analýzu)
+current_files_ids = [f.name + str(f.size) for f in screenshots] if screenshots else []
+if current_files_ids != st.session_state['last_uploaded_files']:
+    st.session_state['ai_final_text'] = "AI analýza nebyla spuštěna (klikněte na tlačítko níže)."
+    st.session_state['last_uploaded_files'] = current_files_ids
 
 if screenshots and gemini_api_key:
-    combined_results = []
-    progress_bar = st.progress(0)
-    
-    for idx, shot in enumerate(screenshots):
-        with st.spinner(f"🤖 AI analyzuje screenshot č. {idx+1}..."):
-            try:
-                genai.configure(api_key=gemini_api_key)
-                img = Image.open(shot)
-                model = genai.GenerativeModel('gemini-2.5-flash')
-                
-                prompt = """
-                Jsi expert na českou leteckou legislativu dronů. Analyzuj tento screenshot z DroneMap. 
-                Podívej se na aktivní zóny v pravém panelu. Napiš stručné zhodnocení (max 2 věty). 
-                Varuj před limity výšky (GRID CTR) nebo aktivními zónami.
-                Odpovídej česky.
-                """
-                
-                response = model.generate_content([prompt, img])
-                combined_results.append(f"Obrázek {idx+1}: {response.text}")
-            except Exception as e:
-                combined_results.append(f"Obrázek {idx+1}: Chyba analýzy ({e})")
+    # Tlačítko se zobrazí pouze pokud jsou nahrány soubory a zadán klíč
+    if st.button("🤖 Spustit hromadnou AI analýzu mapy", type="primary"):
+        combined_results = []
+        progress_bar = st.progress(0)
         
-        progress_bar.progress((idx + 1) / len(screenshots))
-    
-    ai_final_text = "\n".join(combined_results)
+        for idx, shot in enumerate(screenshots):
+            with st.spinner(f"🤖 AI analyzuje screenshot č. {idx+1}..."):
+                try:
+                    genai.configure(api_key=gemini_api_key)
+                    img = Image.open(shot)
+                    model = genai.GenerativeModel('gemini-2.5-flash')
+                    
+                    prompt = """
+                    Jsi expert na českou leteckou legislativu dronů. Analyzuj tento screenshot z DroneMap. 
+                    Podívej se na aktivní zóny v pravém panelu. Napiš stručné zhodnocení (max 2 věty). 
+                    Varuj před limity výšky (GRID CTR) nebo aktivními zónami.
+                    Odpovídej česky.
+                    """
+                    
+                    response = model.generate_content([prompt, img])
+                    combined_results.append(f"Obrázek {idx+1}: {response.text}")
+                except Exception as e:
+                    combined_results.append(f"Obrázek {idx+1}: Chyba analýzy ({e})")
+            
+            progress_bar.progress((idx + 1) / len(screenshots))
+        
+        # Uložení výsledku do session_state paměti
+        st.session_state['ai_final_text'] = "\n".join(combined_results)
+
+# Zobrazení výsledku z paměti na obrazovce
+if "nebyla spuštěna" not in st.session_state['ai_final_text']:
     st.success("### 🤖 Výsledek hromadné AI analýzy:")
-    st.write(ai_final_text)
+    st.write(st.session_state['ai_final_text'])
+else:
+    st.info(st.session_state['ai_final_text'])
 
 ch_map1 = st.checkbox("Potvrzuji, že jsem zkontroloval DroneMap a prostor je pro můj let VOLNÝ (případně splňuji výškové a časové limity).")
 
@@ -156,7 +172,7 @@ Lokalita letu: {misto_letu}
 
 PROHLASENI O KONTROLE:
 [ANO] Vzduchy prostor overen v systemu DroneMap a vyhodnocen jako bezpecny k letu.
-[ANO] {len(screenshots)} screenshotu mapy bylo pilotem porizeno a nahrano.
+[ANO] {len(screenshots)} screenshotu mapy bylo pilotem porizen a nahrano.
 [ANO] Vizualni kontrola stroje a baterii probehla bez zavad.
 [ANO] Pravidla bezpecne vzdalenosti od osob a budov pro danou kategorii overena.
 [ANO] GPS lock a Return-To-Home (RTH) vyska nastaveny.
@@ -181,7 +197,6 @@ AI VYHODNOCENI PROSTORU:
             with open(temp_name, "wb") as f:
                 f.write(shot.getbuffer())
             
-            # Pokud by byl obrázek příliš velký, fpdf2 ho automaticky zalomí na novou stranu
             pdf.image(temp_name, x=10, y=None, w=180)
             pdf.ln(5)
             
@@ -193,7 +208,8 @@ vsechna_textova_pole = [jmeno, cislo_pilota, misto_letu, model_dronu, seriove_ci
 if all(vsechny_checkboxy) and all(pole.strip() != "" for pole in vsechna_textova_pole) and screenshots:
     st.success(f"🎉 Všechny body splněny! Máte nahraných {len(screenshots)} screenshotů.")
     
-    pdf_bytes = vytvor_pdf(ai_final_text)
+    # OPRAVENO: PDF generujeme z uloženého textu v session_state
+    pdf_bytes = vytvor_pdf(st.session_state['ai_final_text'])
     
     st.download_button(
         label="📄 Stáhnout kompletní PDF protokol",
@@ -202,4 +218,4 @@ if all(vsechny_checkboxy) and all(pole.strip() != "" for pole in vsechna_textova
         mime="application/pdf"
     )
 else:
-    st.warning("❌ Vyplňte všechna pole, nahrajte alespoň jeden screenshot a zaškrtněte checklist.")
+    st.warning("❌ Vyplňte všechna pole, nahrajte alespoň jeden screenshot, spusťte analýzu a zaškrtněte checklist.")
