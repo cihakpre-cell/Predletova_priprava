@@ -68,8 +68,12 @@ def vytvor_pdf(jmeno, cislo, model, reg, kat, misto, img_file):
     if img_file is not None:
         pdf.ln(10)
         pdf.cell(200, 10, txt="Priloha: Screenshot mapy", ln=True)
-        image_bytes = img_file.getvalue()
-        pdf.image(io.BytesIO(image_bytes), x=10, y=None, w=180)
+        # Trik: uložíme obsah obrázku do dočasného souboru, který fpdf přečte
+        with open("temp_image.png", "wb") as f:
+            f.write(img_file.getvalue())
+        # Nyní předáme cestu k souboru, což fpdf bezpečně zvládne
+        pdf.image("temp_image.png", x=10, y=None, w=180)
+        
     return pdf.output(dest='S').encode('latin-1')
 
 if all([jmeno, screenshot, ch1, ch2, ch3, ch4]):
