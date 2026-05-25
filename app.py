@@ -5,7 +5,7 @@ from fpdf import FPDF
 import io
 import unicodedata
 
-# Funkce, která odstraní diakritiku pouze pro účely tisku do PDF (prevence Unicode chyb)
+# Pomocná funkce pro bezpečné odstranění diakritiky před tiskem do PDF
 def odstran_diakritiku(text):
     return "".join(c for c in unicodedata.normalize('NFKD', text) if unicodedata.category(c) != 'Mn')
 
@@ -51,7 +51,7 @@ with time_col1:
 with time_col2:
     st.metric(label="Čas pro DroneMap (UTC)", value=utc_time.strftime("%H:%M:%S"))
 
-st.info("Klikněte na tlačítko níže, vyhledejte na mapě místo vašeho vzletu a zkontrolujte, zda tam neleží aktivní omezení. Nezapomeňte si pořídit snímek obrazovky (screenshot)!")
+st.info("Klikněte na tlačítko níže, vyhledejte na mapě místo vašeho vzletu a zkontrolujte, zda tam neleží aktivní omezení. Nezapomeňte si pořícid snímek obrazovky (screenshot)!")
 
 # Tlačítko jako odkaz na DroneMap
 st.link_button("🌐 Otevřít oficiální mapu DroneMap.gov.cz", "https://dronemap.gov.cz/")
@@ -105,7 +105,7 @@ def vytvor_pdf():
     pdf.set_font("Arial", size=10)
     pdf.ln(5)
 
-    # Přesný textový výstup, který jste požadoval
+    # Kompletní a nezkrácený textový výstup, který požadujete
     log_obsah = f"""Datum a cas (Mistni): {local_time.strftime('%d.%m.%Y %H:%M:%S')}
 Datum a cas (UTC): {utc_time.strftime('%d.%m.%Y %H:%M:%S')}
 
@@ -124,9 +124,9 @@ PROHLASENI O KONTROLE:
 [ANO] Pravidla bezpecne vzdalenosti od osob a budov pro danou kategorii overena.
 [ANO] GPS lock a Return-To-Home (RTH) vyska nastaveny.
 
-STAV: SCHVALENO K LETU"""
+STAV: SCHVALENO K LETU."""
 
-    # Očištění textu od diakritiky před zápisem do PDF, aby knihovna nespadla
+    # Vyčištění od diakritiky pro PDF engine
     cisty_text = odstran_diakritiku(log_obsah)
 
     for radek in cisty_text.split('\n'):
@@ -136,21 +136,20 @@ STAV: SCHVALENO K LETU"""
         pdf.ln(10)
         pdf.set_font("Arial", 'B', 11)
         pdf.cell(200, 10, txt="Priloha: Screenshot mapy", ln=True)
-        # Zápis do dočasného souboru, který fpdf bezpečně přečte
         with open("temp_mapa.png", "wb") as f:
             f.write(screenshot.getbuffer())
         pdf.image("temp_mapa.png", x=10, y=None, w=180)
 
-    return pdf.output()
+    # KLÍČOVÁ OPRAVA CHYBY: Převod bytearray na čisté bytes
+    return bytes(pdf.output())
 
-# Kontrola splnění podmínek
+# Kontrola splnění podmínek pro odemčení stahování
 vsechny_checkboxy = [ch_map1, ch_tech1, ch_tech2, ch_tech3, ch_kat, ch_tech4]
 vsechna_textova_pole = [jmeno, cislo_pilota, misto_letu, model_dronu, registrace_dronu]
 
 if all(vsechny_checkboxy) and all(pole.strip() != "" for pole in vsechna_textova_pole) and screenshot is not None:
     st.success("🎉 Všechny body splněny! Jste připraveni k legálnímu a bezpečnému vzletu.")
     
-    # Generování PDF struktury
     pdf_bytes = vytvor_pdf()
     
     st.download_button(
