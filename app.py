@@ -14,8 +14,8 @@ def odstran_diakritiku(text):
 # --- ZÁKLADNÍ NASTAVENÍ STRÁNKY ---
 st.set_page_config(page_title="Předletová příprava dronaře", page_icon="🛸", layout="centered")
 
-st.title("🛸 Předletová příprava pilota dronu + Bezplatná AI")
-st.write("Oficiální asistent s umělou inteligencí Google Gemini pro létání v kategorii OPEN v ČR.")
+st.title("🛸 Předletová příprava pilota dronu + Multi-AI")
+st.write("Oficiální asistent pro létání v kategorii OPEN. Podpora více screenshotů a hromadné AI analýzy.")
 st.markdown("---")
 
 # --- BOČNÍ PANEL (SIDEBAR) PRO GEMINI API KLÍČ ---
@@ -73,41 +73,42 @@ with st.expander("💡 Nápověda: Jak číst modré řádky v DroneMap?"):
     * **TSA / TRA (Dočasně vyhrazený prostor):** Sledujte čas (UTC) a *Vertikální hranice*.
     """)
 
-screenshot = st.file_uploader("Nahrajte screenshot z DroneMap jako důkaz pro případ kontroly:", type=['png', 'jpg', 'jpeg'])
+# UPRAVENO: accept_multiple_files=True pro nahrání více screenshotů
+screenshots = st.file_uploader("Nahrajte screenshoty z DroneMap (můžete i více najednou):", type=['png', 'jpg', 'jpeg'], accept_multiple_files=True)
 
-# --- AI ANALÝZA OBRÁZKU POMOCÍ GEMINI ---
-ai_vyhodnoceni = "AI analýza nebyla úspěšná (účet má nastavené restrikce nebo chybí API klíč)."
+# --- AI ANALÝZA VÍCE OBRÁZKŮ ---
+ai_final_text = "AI analýza nebyla spuštěna (chybí API klíč nebo screenshoty)."
 
-if screenshot is not None and gemini_api_key:
-    with st.spinner("🤖 AI asistent (Gemini) se pokouší analyzovat screenshot..."):
-        try:
-            # Konfigurace Gemini a načtení obrázku přes PIL
-            genai.configure(api_key=gemini_api_key)
-            img = Image.open(screenshot)
-            
-            # Přechod na nejnovější stabilní model
-            model = genai.GenerativeModel('gemini-2.5-flash')
-            
-            prompt = """
-            Jsi expert na českou leteckou legislativu dronů (ÚCL). Analyzuj tento screenshot z DroneMap.gov.cz. 
-            Podívej se na active zóny v pravém modrém panelu. Napiš stručné zhodnocení (max 3 věty) pro pilota. 
-            Pokud vidíš omezení výšky (např. GRID CTR) nebo aktivní TSA/TRA zóny, jasně ho varuj, do jaké výšky smí letět.
-            Odpovídej česky.
-            """
-            
-            response = model.generate_content([prompt, img])
-            ai_vyhodnoceni = response.text
-            
-            st.success("### 🤖 Doporučení od AI asistenta (Gemini):")
-            st.write(ai_vyhodnoceni)
-            
-        except Exception as e:
-            # Bezpečné zachycení jakékoliv chyby, aby aplikace nespadla
-            st.error("⚠️ Nepodařilo se aktivovat AI asistenta.")
-            st.info(f"Detaily chyby: {e}")
-            ai_vyhodnoceni = "AI analýza nedostupná (Omezení účtu nebo nepodporovaný model)."
+if screenshots and gemini_api_key:
+    combined_results = []
+    progress_bar = st.progress(0)
+    
+    for idx, shot in enumerate(screenshots):
+        with st.spinner(f"🤖 AI analyzuje screenshot č. {idx+1}..."):
+            try:
+                genai.configure(api_key=gemini_api_key)
+                img = Image.open(shot)
+                model = genai.GenerativeModel('gemini-2.5-flash')
+                
+                prompt = """
+                Jsi expert na českou leteckou legislativu dronů. Analyzuj tento screenshot z DroneMap. 
+                Podívej se na aktivní zóny v pravém panelu. Napiš stručné zhodnocení (max 2 věty). 
+                Varuj před limity výšky (GRID CTR) nebo aktivními zónami.
+                Odpovídej česky.
+                """
+                
+                response = model.generate_content([prompt, img])
+                combined_results.append(f"Obrázek {idx+1}: {response.text}")
+            except Exception as e:
+                combined_results.append(f"Obrázek {idx+1}: Chyba analýzy ({e})")
+        
+        progress_bar.progress((idx + 1) / len(screenshots))
+    
+    ai_final_text = "\n".join(combined_results)
+    st.success("### 🤖 Výsledek hromadné AI analýzy:")
+    st.write(ai_final_text)
 
-ch_map1 = st.checkbox("Potvrzuji, že jsem zkontroloval DroneMap and prostor je pro můj let VOLNÝ (případně splňuji výškové a časové limity).")
+ch_map1 = st.checkbox("Potvrzuji, že jsem zkontroloval DroneMap a prostor je pro můj let VOLNÝ (případně splňuji výškové a časové limity).")
 
 st.markdown("---")
 
@@ -132,12 +133,10 @@ st.markdown("---")
 # --- 4. VYHODNOCENÍ A GENERÁTOR PDF ---
 st.header("4. Status a Letový deník")
 
-def vytvor_pdf(ai_text):
+def vytvor_pdf(ai_text_list):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", 'B', 14)
-    
-    # Zafixováno: Použití přesné šířky stránky (pdf.epw) a moderního parametru 'text'
     pdf.cell(pdf.epw, 10, text="--- PREDLETOVY PROTOKOL A LETOVY DENIK ---", align='C')
     pdf.ln(12)
     
@@ -157,7 +156,7 @@ Lokalita letu: {misto_letu}
 
 PROHLASENI O KONTROLE:
 [ANO] Vzduchy prostor overen v systemu DroneMap a vyhodnocen jako bezpecny k letu.
-[ANO] Screenshot mapy byl pilotem porizen a nahran behem pripravy.
+[ANO] {len(screenshots)} screenshotu mapy bylo pilotem porizeno a nahrano.
 [ANO] Vizualni kontrola stroje a baterii probehla bez zavad.
 [ANO] Pravidla bezpecne vzdalenosti od osob a budov pro danou kategorii overena.
 [ANO] GPS lock a Return-To-Home (RTH) vyska nastaveny.
@@ -165,32 +164,36 @@ PROHLASENI O KONTROLE:
 STAV: SCHVALENO K LETU.
 
 AI VYHODNOCENI PROSTORU:
-{ai_text}"""
+{ai_text_list}"""
 
     cisty_text = odstran_diakritiku(log_obsah)
-
-    # Zafixováno: Žádné rozsekávání řádků. Posíláme celý text najednou 
-    # do jedné multi_cell s pevně definovanou šířkou stránky.
     pdf.multi_cell(w=pdf.epw, h=6, text=cisty_text)
 
-    if screenshot is not None:
+    # Vložení všech obrázků do PDF
+    if screenshots:
         pdf.ln(10)
         pdf.set_font("Arial", 'B', 11)
-        pdf.cell(pdf.epw, 10, text="Priloha: Screenshot mapy")
+        pdf.cell(pdf.epw, 10, text=f"Priloha: {len(screenshots)}x Screenshot mapy")
         pdf.ln(10)
-        with open("temp_mapa.png", "wb") as f:
-            f.write(screenshot.getbuffer())
-        pdf.image("temp_mapa.png", x=10, y=None, w=180)
-
+        
+        for i, shot in enumerate(screenshots):
+            temp_name = f"temp_mapa_{i}.png"
+            with open(temp_name, "wb") as f:
+                f.write(shot.getbuffer())
+            
+            # Pokud by byl obrázek příliš velký, fpdf2 ho automaticky zalomí na novou stranu
+            pdf.image(temp_name, x=10, y=None, w=180)
+            pdf.ln(5)
+            
     return bytes(pdf.output())
 
 vsechny_checkboxy = [ch_map1, ch_tech1, ch_tech2, ch_tech3, ch_kat, ch_tech4]
 vsechna_textova_pole = [jmeno, cislo_pilota, misto_letu, model_dronu, seriove_cislo_dronu, registrace_dronu]
 
-if all(vsechny_checkboxy) and all(pole.strip() != "" for pole in vsechna_textova_pole) and screenshot is not None:
-    st.success("🎉 Všechny body splněny! Jste připraveni k legálnímu a bezpečnému vzletu.")
+if all(vsechny_checkboxy) and all(pole.strip() != "" for pole in vsechna_textova_pole) and screenshots:
+    st.success(f"🎉 Všechny body splněny! Máte nahraných {len(screenshots)} screenshotů.")
     
-    pdf_bytes = vytvor_pdf(ai_vyhodnoceni)
+    pdf_bytes = vytvor_pdf(ai_final_text)
     
     st.download_button(
         label="📄 Stáhnout kompletní PDF protokol",
@@ -199,4 +202,4 @@ if all(vsechny_checkboxy) and all(pole.strip() != "" for pole in vsechna_textova
         mime="application/pdf"
     )
 else:
-    st.warning("❌ K dokončení přípravy a vygenerování PDF protokolu musíte vyplnit všechna pole, nahrát screenshot z DroneMap a zaškrtnout celý checklist.")
+    st.warning("❌ Vyplňte všechna pole, nahrajte alespoň jeden screenshot a zaškrtněte checklist.")
