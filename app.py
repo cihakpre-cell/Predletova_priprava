@@ -76,16 +76,16 @@ with st.expander("💡 Nápověda: Jak číst modré řádky v DroneMap?"):
 screenshot = st.file_uploader("Nahrajte screenshot z DroneMap jako důkaz pro případ kontroly:", type=['png', 'jpg', 'jpeg'])
 
 # --- AI ANALÝZA OBRÁZKU POMOCÍ GEMINI ---
-ai_vyhodnoceni = "AI analýza nebyla spuštěna (chybí bezplatný API klíč nebo screenshot)."
+ai_vyhodnoceni = "AI analýza nebyla úspěšná (účet má nastavené restrikce nebo chybí API klíč)."
 
 if screenshot is not None and gemini_api_key:
-    with st.spinner("🤖 AI asistent (Gemini) analyzuje screenshot z DroneMap..."):
+    with st.spinner("🤖 AI asistent (Gemini) se pokouší analyzovat screenshot..."):
         try:
             # Konfigurace Gemini a načtení obrázku přes PIL
             genai.configure(api_key=gemini_api_key)
             img = Image.open(screenshot)
             
-            # Inicializace modelu
+            # Přechod na nejnovější stabilní model
             model = genai.GenerativeModel('gemini-2.5-flash')
             
             prompt = """
@@ -100,9 +100,12 @@ if screenshot is not None and gemini_api_key:
             
             st.success("### 🤖 Doporučení od AI asistenta (Gemini):")
             st.write(ai_vyhodnoceni)
+            
         except Exception as e:
-            st.error(f"Nepodařilo se spojit s Gemini AI: {e}")
-            ai_vyhodnoceni = f"Chyba při komunikaci s AI: {e}"
+            # Bezpečné zachycení jakékoliv chyby, aby aplikace nespadla
+            st.error("⚠️ Nepodařilo se aktivovat AI asistenta.")
+            st.info(f"Detaily chyby: {e}")
+            ai_vyhodnoceni = "AI analýza nedostupná (Omezení účtu nebo nepodporovaný model)."
 
 ch_map1 = st.checkbox("Potvrzuji, že jsem zkontroloval DroneMap a prostor je pro můj let VOLNÝ (případně splňuji výškové a časové limity).")
 
@@ -164,7 +167,8 @@ AI VYHODNOCENI PROSTORU:
     cisty_text = odstran_diakritiku(log_obsah)
 
     for radek in cisty_text.split('\n'):
-        pdf.cell(200, 6, txt=radek, ln=True)
+        # OPRAVENO: multi_cell automaticky zalamuje dlouhé texty od AI podle šířky stránky
+        pdf.multi_cell(0, 6, txt=radek)
 
     if screenshot is not None:
         pdf.ln(10)
