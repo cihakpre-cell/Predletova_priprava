@@ -27,13 +27,15 @@ with col1:
 
 with col2:
     model_dronu = st.text_input("Model dronu:", placeholder="např. DJI Mini 4 Pro")
+    seriove_cislo_dronu = st.text_input("Sériové číslo dronu (identifikace):", placeholder="např. 1581F...")
     registrace_dronu = st.text_input("Registrační číslo provozovatele:", value="CZE-RP-fj1kki0j9ajl")
-    kategorie_open = st.selectbox(
-        "Podkategorie OPEN:",
-        ["A1 (drony do 900g, např. DJI Mini)", 
-         "A2 (drony do 4kg, zkouška A2)", 
-         "A3 (těžší drony do 25kg, dál od lidí)"]
-    )
+
+kategorie_open = st.selectbox(
+    "Podkategorie OPEN:",
+    ["A1 (drony do 900g, např. DJI Mini)", 
+     "A2 (drony do 4kg, zkouška A2)", 
+     "A3 (těžší drony do 25kg, dál od lidí)"]
+)
 
 st.markdown("---")
 
@@ -51,7 +53,7 @@ with time_col1:
 with time_col2:
     st.metric(label="Čas pro DroneMap (UTC)", value=utc_time.strftime("%H:%M:%S"))
 
-st.info("Klikněte na tlačítko níže, vyhledejte na mapě místo vašeho vzletu a zkontrolujte, zda tam neleží aktivní omezení. Nezapomeňte si pořícid snímek obrazovky (screenshot)!")
+st.info("Klikněte na tlačítko níže, vyhledejte na mapě místo vašeho vzletu a zkontrolujte, zda tam neleží aktivní omezení. Nezapomeňte si pořídit snímek obrazovky (screenshot)!")
 
 # Tlačítko jako odkaz na DroneMap
 st.link_button("🌐 Otevřít oficiální mapu DroneMap.gov.cz", "https://dronemap.gov.cz/")
@@ -71,7 +73,7 @@ with st.expander("💡 Nápověda: Jak číst modré řádky v DroneMap?"):
 screenshot = st.file_uploader("Nahrajte screenshot z DroneMap jako důkaz pro případ kontroly:", type=['png', 'jpg', 'jpeg'])
 
 # Potvrzení legislativy
-ch_map1 = st.checkbox("Potvrzuji, že jsem zkontroloval DroneMap a prostor je pro můj let VOLNÝ (případně splňuji výškové a časové limity).")
+ch_map1 = st.checkbox("Potvrzuji, že jsem zkontroloval DroneMap and prostor je pro můj let VOLNÝ (případně splňuji výškové a časové limity).")
 
 st.markdown("---")
 
@@ -105,7 +107,7 @@ def vytvor_pdf():
     pdf.set_font("Arial", size=10)
     pdf.ln(5)
 
-    # Kompletní a nezkrácený textový výstup, který požadujete
+    # Kompletní textový výstup obohacený o Sériové číslo dronu
     log_obsah = f"""Datum a cas (Mistni): {local_time.strftime('%d.%m.%Y %H:%M:%S')}
 Datum a cas (UTC): {utc_time.strftime('%d.%m.%Y %H:%M:%S')}
 
@@ -113,6 +115,7 @@ UDAJE O PILOTOVI A DRONU:
 Pilot: {jmeno}
 Cislo pilota: {cislo_pilota}
 Model dronu: {model_dronu}
+Seriove manuální cislo dronu: {seriove_cislo_dronu}
 Registracni cislo provozovatele: {registrace_dronu}
 Podkategorie OPEN: {kategorie_open}
 Lokalita letu: {misto_letu}
@@ -140,12 +143,11 @@ STAV: SCHVALENO K LETU."""
             f.write(screenshot.getbuffer())
         pdf.image("temp_mapa.png", x=10, y=None, w=180)
 
-    # KLÍČOVÁ OPRAVA CHYBY: Převod bytearray na čisté bytes
     return bytes(pdf.output())
 
-# Kontrola splnění podmínek pro odemčení stahování
+# Kontrola splnění všech podmínek pro odemčení stahování
 vsechny_checkboxy = [ch_map1, ch_tech1, ch_tech2, ch_tech3, ch_kat, ch_tech4]
-vsechna_textova_pole = [jmeno, cislo_pilota, misto_letu, model_dronu, registrace_dronu]
+vsechna_textova_pole = [jmeno, cislo_pilota, misto_letu, model_dronu, seriove_cislo_dronu, registrace_dronu]
 
 if all(vsechny_checkboxy) and all(pole.strip() != "" for pole in vsechna_textova_pole) and screenshot is not None:
     st.success("🎉 Všechny body splněny! Jste připraveni k legálnímu a bezpečnému vzletu.")
