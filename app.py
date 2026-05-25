@@ -4,80 +4,86 @@ import pytz
 from fpdf import FPDF
 import io
 
-# --- ZÁKLADNÍ NASTAVENÍ ---
-st.set_page_config(page_title="Předletová příprava dronaře", page_icon="🛸", layout="centered")
-
+# --- NASTAVENÍ ---
+st.set_page_config(page_title="Předletová příprava", page_icon="🛸", layout="centered")
 st.title("🛸 Předletová příprava pilota dronu")
-st.write("Oficiální asistent pro létání v kategorii OPEN v České republice.")
-st.markdown("---")
 
-# --- 1. ÚDAJE O PILOTOVI ---
-st.header("1. Profil letu")
+# --- 1. PROFIL ---
 col1, col2 = st.columns(2)
 with col1:
-    jmeno = st.text_input("Jméno a příjmení pilota:")
+    jmeno = st.text_input("Jméno a příjmení:")
     cislo_pilota = st.text_input("Číslo dálkově řídícího pilota:", value="CZE-RP-fj1kki0j9ajl")
     misto_letu = st.text_input("Lokalita letu:")
 with col2:
     model_dronu = st.text_input("Model dronu:")
-    registrace_dronu = st.text_input("Registrační číslo provozovatele:")
-    kategorie_open = st.selectbox("Podkategorie OPEN:", ["A1", "A2", "A3"])
+    registrace_dronu = st.text_input("Registrační číslo:", value="CZE-RP-fj1kki0j9ajl")
+    kategorie = st.selectbox("Kategorie OPEN:", ["A1", "A2", "A3"])
 
 # --- 2. ČAS A MAPA ---
-st.header("2. Kontrola času a prostoru")
 cz_tz = pytz.timezone('Europe/Prague')
-aktualni_local_cas = datetime.datetime.now(cz_tz)
-aktualni_utc_cas = aktualni_local_cas.astimezone(pytz.utc)
+local_time = datetime.datetime.now(cz_tz)
+utc_time = local_time.astimezone(pytz.utc)
 
-st.info(f"Aktuální čas pro DroneMap (UTC): **{aktualni_utc_cas.strftime('%H:%M')}**")
-st.link_button("🌐 Otevřít oficiální mapu DroneMap.gov.cz", "https://dronemap.gov.cz/")
+st.write(f"**Čas (místní):** {local_time.strftime('%d.%m.%Y %H:%M:%S')}")
+st.write(f"**Čas (UTC):** {utc_time.strftime('%d.%m.%Y %H:%M:%S')}")
+st.link_button("🌐 Otevřít DroneMap", "https://dronemap.gov.cz/")
 
-with st.expander("💡 Nápověda: Jak číst modré řádky v DroneMap?"):
-    st.write("""
-    Rozbalte každý modrý řádek:
-    * **CTR / Grid CTR:** Pozor na výškové limity.
-    * **Chráněná území:** Létání bez povolení zakázáno.
-    * **TSA / TRA:** Pokud jsou aktivní, sledujte *Vertikální hranice* (např. 91 m AGL znamená, že pod 90m je prostor volný).
-    * **Hustě osídlený prostor:** V kategorii A3 sem nesmíte vletět.
-    """)
+with st.expander("💡 Nápověda: Jak číst modré řádky?"):
+    st.write("Sledujte vertikální hranice a aktivitu TSA/TRA prostorů v UTC čase.")
 
-screenshot = st.file_uploader("Nahrajte screenshot z DroneMap:", type=['png', 'jpg', 'jpeg'])
+screenshot = st.file_uploader("Nahrajte screenshot mapy:", type=['png', 'jpg', 'jpeg'])
 
 # --- 3. CHECKLIST ---
 st.header("3. Bezpečnostní checklist")
-ch1 = st.checkbox("Vrtule jsou bez prasklin, baterie nejsou nafouklé.")
-ch2 = st.checkbox("Baterie dronu i ovladače jsou dostatečně nabité.")
-ch3 = st.checkbox("Ověřil jsem, že nejsem v zakázané zóně (např. CHKO/NP).")
-ch4 = st.checkbox("GPS lock a Return-To-Home výška nastaveny.")
+ch1 = st.checkbox("Prostor ověřen v DroneMap.")
+ch2 = st.checkbox("Vizuální kontrola stroje a baterií.")
+ch3 = st.checkbox("Pravidla bezpečné vzdálenosti ověřena.")
+ch4 = st.checkbox("GPS lock a RTH nastaveny.")
 
 # --- 4. PDF GENERÁTOR ---
-st.header("4. Vygenerovat protokol")
-
-def vytvor_pdf(jmeno, cislo, model, reg, kat, misto, img_file):
+def vytvor_pdf():
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", 'B', 16)
-    pdf.cell(200, 10, txt="Protokol o predletove priprave", ln=True, align='C')
-    pdf.set_font("Arial", size=12)
-    pdf.ln(10)
-    pdf.cell(200, 10, txt=f"Pilot: {jmeno} ({cislo})", ln=True)
-    pdf.cell(200, 10, txt=f"Dron: {model} (Reg: {reg})", ln=True)
-    pdf.cell(200, 10, txt=f"Lokalita: {misto} | Kategorie: {kat}", ln=True)
-    pdf.cell(200, 10, txt=f"Datum: {datetime.datetime.now().strftime('%d.%m.%Y %H:%M')}", ln=True)
+    pdf.cell(200, 10, txt="PREDLETOVY PROTOKOL A LETOVY DENIK", ln=True, align='C')
+    pdf.set_font("Arial", size=11)
+    pdf.ln(5)
     
-    if img_file is not None:
-        pdf.ln(10)
+    text = f"""Datum a cas (Mistni): {local_time.strftime('%d.%m.%Y %H:%M:%S')}
+Datum a cas (UTC): {utc_time.strftime('%d.%m.%Y %H:%M:%S')}
+
+UDAJE O PILOTOVI A DRONU:
+Pilot: {jmeno}
+Cislo pilota: {cislo_pilota}
+Model dronu: {model_dronu}
+Registracni cislo provozovatele: {registrace_dronu}
+Podkategorie OPEN: {kategorie}
+Lokalita letu: {misto_letu}
+
+PROHLASENI O KONTROLE:
+[ANO] Vzdusny prostor overen v systemu DroneMap.
+[ANO] Screenshot mapy byl porizen.
+[ANO] Vizualni kontrola stroje a baterii probehla.
+[ANO] Pravidla bezpecne vzdalenosti overena.
+[ANO] GPS lock a RTH vyska nastaveny.
+
+STAV: SCHVALENO K LETU"""
+    
+    for line in text.split('\n'):
+        pdf.cell(200, 7, txt=line, ln=True)
+        
+    if screenshot:
+        pdf.ln(5)
         pdf.cell(200, 10, txt="Priloha: Screenshot mapy", ln=True)
-        # Trik: uložíme obsah obrázku do dočasného souboru, který fpdf přečte
-        with open("temp_image.png", "wb") as f:
-            f.write(img_file.getvalue())
-        # Nyní předáme cestu k souboru, což fpdf bezpečně zvládne
-        pdf.image("temp_image.png", x=10, y=None, w=180)
+        with open("temp_mapa.png", "wb") as f:
+            f.write(screenshot.getbuffer())
+        pdf.image("temp_mapa.png", x=10, y=None, w=180)
         
     return pdf.output(dest='S').encode('latin-1')
 
 if all([jmeno, screenshot, ch1, ch2, ch3, ch4]):
-    pdf_data = vytvor_pdf(jmeno, cislo_pilota, model_dronu, registrace_dronu, kategorie_open, misto_letu, screenshot)
-    st.download_button("📄 Stáhnout PDF protokol", pdf_data, "protokol_letu.pdf", "application/pdf")
+    if st.button("Vygenerovat a stáhnout PDF protokol"):
+        pdf_bytes = vytvor_pdf()
+        st.download_button("📄 Stáhnout PDF", pdf_bytes, "Protokol_letu.pdf", "application/pdf")
 else:
-    st.warning("Pro vygenerování protokolu vyplňte všechny údaje, nahrajte screenshot a zaškrtněte checklist.")
+    st.warning("Vyplňte údaje, nahrajte screenshot a zaškrtněte checklist.")
