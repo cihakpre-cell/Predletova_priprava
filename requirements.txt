@@ -1,3 +1,5 @@
 streamlit
 pytz
 fpdf2
+google-generativeai
+Pillow
