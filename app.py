@@ -86,7 +86,7 @@ if screenshot is not None and gemini_api_key:
             img = Image.open(screenshot)
             
             # Inicializace modelu
-            model = genai.GenerativeModel('gemini-1.5-flash')
+            model = genai.GenerativeModel('gemini-2.0-flash')
             
             prompt = """
             Jsi expert na českou leteckou legislativu dronů (ÚCL). Analyzuj tento screenshot z DroneMap.gov.cz. 
