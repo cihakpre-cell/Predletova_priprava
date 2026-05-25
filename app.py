@@ -90,7 +90,7 @@ if screenshot is not None and gemini_api_key:
             
             prompt = """
             Jsi expert na českou leteckou legislativu dronů (ÚCL). Analyzuj tento screenshot z DroneMap.gov.cz. 
-            Podívej se na aktivní zóny v pravém modrém panelu. Napiš stručné zhodnocení (max 3 věty) pro pilota. 
+            Podívej se na active zóny v pravém modrém panelu. Napiš stručné zhodnocení (max 3 věty) pro pilota. 
             Pokud vidíš omezení výšky (např. GRID CTR) nebo aktivní TSA/TRA zóny, jasně ho varuj, do jaké výšky smí letět.
             Odpovídej česky.
             """
@@ -107,7 +107,7 @@ if screenshot is not None and gemini_api_key:
             st.info(f"Detaily chyby: {e}")
             ai_vyhodnoceni = "AI analýza nedostupná (Omezení účtu nebo nepodporovaný model)."
 
-ch_map1 = st.checkbox("Potvrzuji, že jsem zkontroloval DroneMap a prostor je pro můj let VOLNÝ (případně splňuji výškové a časové limity).")
+ch_map1 = st.checkbox("Potvrzuji, že jsem zkontroloval DroneMap and prostor je pro můj let VOLNÝ (případně splňuji výškové a časové limity).")
 
 st.markdown("---")
 
@@ -136,9 +136,12 @@ def vytvor_pdf(ai_text):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", 'B', 14)
-    pdf.cell(200, 10, txt="--- PREDLETOVY PROTOKOL A LETOVY DENIK ---", ln=True, align='C')
+    
+    # Zafixováno: Použití přesné šířky stránky (pdf.epw) a moderního parametru 'text'
+    pdf.cell(pdf.epw, 10, text="--- PREDLETOVY PROTOKOL A LETOVY DENIK ---", align='C')
+    pdf.ln(12)
+    
     pdf.set_font("Arial", size=10)
-    pdf.ln(5)
 
     log_obsah = f"""Datum a cas (Mistni): {local_time.strftime('%d.%m.%Y %H:%M:%S')}
 Datum a cas (UTC): {utc_time.strftime('%d.%m.%Y %H:%M:%S')}
@@ -166,14 +169,15 @@ AI VYHODNOCENI PROSTORU:
 
     cisty_text = odstran_diakritiku(log_obsah)
 
-    for radek in cisty_text.split('\n'):
-        # OPRAVENO: multi_cell automaticky zalamuje dlouhé texty od AI podle šířky stránky
-        pdf.multi_cell(0, 6, txt=radek)
+    # Zafixováno: Žádné rozsekávání řádků. Posíláme celý text najednou 
+    # do jedné multi_cell s pevně definovanou šířkou stránky.
+    pdf.multi_cell(w=pdf.epw, h=6, text=cisty_text)
 
     if screenshot is not None:
         pdf.ln(10)
         pdf.set_font("Arial", 'B', 11)
-        pdf.cell(200, 10, txt="Priloha: Screenshot mapy", ln=True)
+        pdf.cell(pdf.epw, 10, text="Priloha: Screenshot mapy")
+        pdf.ln(10)
         with open("temp_mapa.png", "wb") as f:
             f.write(screenshot.getbuffer())
         pdf.image("temp_mapa.png", x=10, y=None, w=180)
